@@ -15,14 +15,6 @@ if [ -f /usr/sbin/sshd ]; then
     log "SSH daemon started with PID $SSHD_PID"
 fi
 
-# Start cloudflared tunnel (if token provided)
-if [ -n "$CLOUDFLARED_TOKEN" ]; then
-    log "Starting cloudflared tunnel..."
-    cloudflared tunnel --no-autoupdate run --token "$CLOUDFLARED_TOKEN" &
-    CLOUDFLARED_PID=$!
-    log "cloudflared started with PID $CLOUDFLARED_PID"
-fi
-
 # Start Discord bot (listens on Render's PORT env var)
 log "Starting Discord bot..."
 cd /app
