@@ -31,10 +31,10 @@ const fetch = require('node-fetch'); // Must be v2.x
 
     // ==================== TEST GENERAL INTERNET CONNECTIVITY ====================
     try {
-      console.log('🌐 Testing general internet connectivity (ipify)...');
-      const ipRes = await fetch('https://api.ipify.org?format=json');
-      const ipData = await ipRes.json();
-      console.log('✅ Public IP:', ipData.ip);
+      console.log('🧪 Testing proxy connection via ipify...');
+      const testResponse = await fetch('https://api.ipify.org?format=json', { agent: socksAgent });
+      const testData = await testResponse.json();
+      console.log('✅ Proxy test successful. IP from proxy:', testData.ip);
     } catch (err) {
       console.error('❌ General internet test failed:', err.message);
     }
