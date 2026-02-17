@@ -1,7 +1,15 @@
-const express = require('express');
 const { Client, GatewayIntentBits } = require('discord.js');
+const express = require('express');
 
-console.log("TOKEN exists:", !!process.env.TOKEN); // Should print true
+// 1. Create the Discord client FIRST
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+// 2. Set up event listeners
+client.once('ready', () => {
+    console.log(`✅ Logged in as ${client.user.tag}`);
+});
+
+// 3. THEN login (using the client that now exists)
 console.log("Attempting Discord login...");
 client.login(process.env.TOKEN).then(() => {
     console.log("Login successful!");
@@ -9,22 +17,12 @@ client.login(process.env.TOKEN).then(() => {
     console.error("Login failed:", err.message);
 });
 
+// 4. Your Express server (keep this as is)
 const app = express();
-const PORT = process.env.PORT || 10000;  // Render sets PORT env
+const PORT = process.env.PORT || 10000;
 
-// Basic route to keep Render happy
 app.get('/', (req, res) => res.send('Bot is running'));
 
-// Start HTTP server
 app.listen(PORT, () => {
     console.log(`HTTP server listening on port ${PORT}`);
 });
-
-// Your Discord bot
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-
-client.once('ready', () => {
-    console.log(`Logged in as ${client.user.tag}`);
-});
-
-client.login(process.env.TOKEN);
