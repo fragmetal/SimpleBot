@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const express = require('express');
-const { SocksProxyAgent } = require('socks-proxy-agent');
 const { createServer } = require('http');
+const { SocksClient } = require('socks');
 const { ProxyAgent, setGlobalDispatcher } = require('undici');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 
@@ -16,35 +16,76 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
     } else {
       console.log('🔌 SOCKS5 proxy detected, setting up local HTTP proxy...');
 
-      // Create a SOCKS5 agent for the local proxy to use
-      const socksAgent = new SocksProxyAgent(SOCKS_URL);
+      // Parse SOCKS URL
+      const socksUrl = new URL(SOCKS_URL);
+      const socksOptions = {
+        proxy: {
+          host: socksUrl.hostname,
+          port: parseInt(socksUrl.port) || 1080,
+          type: 5, // SOCKS5
+          userId: socksUrl.username ? decodeURIComponent(socksUrl.username) : undefined,
+          password: socksUrl.password ? decodeURIComponent(socksUrl.password) : undefined,
+        },
+        command: 'connect',
+        destination: { host: '', port: 0 }, // Will be set per request
+      };
 
-      // Create a local HTTP proxy server that forwards to the SOCKS5 proxy
-      const localProxyPort = 0; // Let the OS assign a random free port
+      // Create a local HTTP proxy server
+      const localProxyPort = 0; // Let OS assign random port
       const localProxyServer = createServer((req, res) => {
-        // This handles HTTP requests (not CONNECT) – we'll only use CONNECT for WebSocket, but include for completeness
-        res.writeHead(502, { 'Content-Type': 'text/plain' });
-        res.end('This proxy only supports CONNECT (WebSocket)');
+        // We only support CONNECT (HTTPS/WebSocket tunneling)
+        res.writeHead(502);
+        res.end('This proxy only supports CONNECT (HTTPS/WebSocket)');
       });
 
-      // Handle CONNECT method (used for HTTPS and WebSocket tunneling)
-      localProxyServer.on('connect', (req, clientSocket, head) => {
+      // Handle CONNECT method
+      localProxyServer.on('connect', async (req, clientSocket, head) => {
         const { port, hostname } = new URL(`http://${req.url}`);
-        // Connect to the target through the SOCKS5 proxy
-        socksAgent.connect(req, { host: hostname, port }, (err, proxySocket) => {
-          if (err) {
-            clientSocket.write('HTTP/1.1 500 Connection Failed\r\n\r\n');
-            clientSocket.end();
-            return;
-          }
+        console.log(`🔌 CONNECT request to ${hostname}:${port}`);
+
+        // Timeout for SOCKS connection
+        const timeout = setTimeout(() => {
+          console.error(`❌ SOCKS connection to ${hostname}:${port} timed out`);
+          clientSocket.write('HTTP/1.1 504 Gateway Timeout\r\n\r\n');
+          clientSocket.end();
+        }, 15000);
+
+        try {
+          const { socket } = await SocksClient.createConnection({
+            ...socksOptions,
+            destination: { host: hostname, port: port },
+          });
+
+          clearTimeout(timeout);
+          console.log(`✅ SOCKS connection established to ${hostname}:${port}`);
+
           clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
-          // Pipe data between client and proxy
-          proxySocket.pipe(clientSocket);
-          clientSocket.pipe(proxySocket);
-        });
+
+          // Pipe data
+          socket.pipe(clientSocket);
+          clientSocket.pipe(socket);
+
+          socket.on('error', (err) => {
+            console.error(`❌ SOCKS socket error: ${err.message}`);
+            clientSocket.end();
+          });
+          clientSocket.on('error', (err) => {
+            console.error(`❌ Client socket error: ${err.message}`);
+            socket.end();
+          });
+
+          if (head && head.length > 0) {
+            socket.write(head);
+          }
+        } catch (err) {
+          clearTimeout(timeout);
+          console.error(`❌ Failed to establish SOCKS connection to ${hostname}:${port}: ${err.message}`);
+          clientSocket.write('HTTP/1.1 502 Bad Gateway\r\n\r\n');
+          clientSocket.end();
+        }
       });
 
-      // Start the local proxy server
+      // Start local proxy server
       await new Promise((resolve) => {
         localProxyServer.listen(localProxyPort, '127.0.0.1', () => {
           console.log(`✅ Local HTTP proxy listening on port ${localProxyServer.address().port}`);
@@ -54,18 +95,18 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 
       const LOCAL_PROXY_URL = `http://127.0.0.1:${localProxyServer.address().port}`;
 
-      // ==================== CONFIGURE UNDERICI TO USE LOCAL HTTP PROXY ====================
+      // Configure undici to use local HTTP proxy
       const proxyAgent = new ProxyAgent(LOCAL_PROXY_URL);
       setGlobalDispatcher(proxyAgent);
       console.log('✅ Global undici proxy configured to use local HTTP proxy');
 
-      // ==================== CONFIGURE WEBSOCKET AGENT ====================
+      // Configure WebSocket agent
       const wsAgent = new HttpsProxyAgent(LOCAL_PROXY_URL);
       global.wsProxyAgent = wsAgent;
       console.log('✅ WebSocket proxy agent configured to use local HTTP proxy');
     }
 
-    // ==================== TEST PROXY VIA LOCAL HTTP PROXY ====================
+    // ==================== TEST PROXY VIA IPIFY ====================
     try {
       console.log('🧪 Testing proxy via ipify (through undici)...');
       const response = await fetch('https://api.ipify.org?format=json');
