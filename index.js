@@ -1,5 +1,17 @@
+const fetch = require('node-fetch');
 const { Client, GatewayIntentBits } = require('discord.js');
 const express = require('express');
+
+(async () => {
+  try {
+    const res = await fetch('https://discord.com/api/v10/gateway');
+    const data = await res.json();
+    console.log('✅ Discord API reachable, gateway URL:', data.url);
+  } catch (err) {
+    console.error('❌ Cannot reach Discord API:', err.message);
+    process.exit(1);
+  }
+})();
 
 // 1. Create the Discord client FIRST
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
