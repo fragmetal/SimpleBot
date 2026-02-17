@@ -6,14 +6,7 @@ RUN apk add --no-cache \
     curl \
     openssh \
     nodejs \
-    npm \
-    # for cloudflared
-    ca-certificates
-
-# Install cloudflared
-RUN curl -L --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
-    && chmod +x cloudflared \
-    && mv cloudflared /usr/local/bin/
+    npm
 
 # Configure SSH (optional, but keep for now)
 RUN ssh-keygen -A && \
