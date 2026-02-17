@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const express = require('express');
 const { createServer } = require('http');
-const { SocksProxyAgent } = require('socks-proxy-agent');
+const { SocksClient } = require('socks');
 const { ProxyAgent, setGlobalDispatcher } = require('undici');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 
@@ -16,8 +16,19 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
     } else {
       console.log('🔌 SOCKS5 proxy detected, setting up local HTTP proxy...');
 
-      // Create a SOCKS agent for outgoing connections
-      const socksAgent = new SocksProxyAgent(SOCKS_URL);
+      // Parse SOCKS URL
+      const socksUrl = new URL(SOCKS_URL);
+      const proxyOptions = {
+        proxy: {
+          host: socksUrl.hostname,
+          port: parseInt(socksUrl.port) || 1080,
+          type: 5, // SOCKS5
+          userId: socksUrl.username ? decodeURIComponent(socksUrl.username) : undefined,
+          password: socksUrl.password ? decodeURIComponent(socksUrl.password) : undefined,
+        },
+        command: 'connect',
+        destination: { host: '', port: 0 }, // Will be set per request
+      };
 
       // Create a local HTTP proxy server
       const localProxyPort = 0; // Let OS assign random port
@@ -27,23 +38,23 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
       });
 
       // Handle CONNECT method (used for HTTPS and WebSocket tunneling)
-      localProxyServer.on('connect', (req, clientSocket, head) => {
+      localProxyServer.on('connect', async (req, clientSocket, head) => {
         const { port, hostname } = new URL(`http://${req.url}`);
         console.log(`🔌 CONNECT request to ${hostname}:${port}`);
 
-        // Use socksAgent to establish a connection to the destination
-        socksAgent.createConnection({ host: hostname, port }, (err, socket) => {
-          if (err) {
-            console.error(`❌ SOCKS connection error: ${err.message}`);
-            clientSocket.write('HTTP/1.1 502 Bad Gateway\r\n\r\n');
-            clientSocket.end();
-            return;
-          }
+        try {
+          // Establish SOCKS5 connection using SocksClient
+          const { socket } = await SocksClient.createConnection({
+            ...proxyOptions,
+            destination: { host: hostname, port: port },
+          });
 
           console.log(`✅ SOCKS connection established to ${hostname}:${port}`);
+
+          // Send 200 Connection Established
           clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
 
-          // Pipe data between client and SOCKS socket
+          // Pipe data
           socket.pipe(clientSocket);
           clientSocket.pipe(socket);
 
@@ -57,7 +68,11 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
           });
 
           if (head && head.length > 0) socket.write(head);
-        });
+        } catch (err) {
+          console.error(`❌ Failed to establish SOCKS connection to ${hostname}:${port}: ${err.message}`);
+          clientSocket.write('HTTP/1.1 502 Bad Gateway\r\n\r\n');
+          clientSocket.end();
+        }
       });
 
       // Start local proxy server
@@ -81,7 +96,7 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
       console.log('✅ WebSocket proxy agent configured to use local HTTP proxy');
     }
 
-    // ==================== START EXPRESS SERVER FIRST (CRITICAL FOR RENDER) ====================
+    // ==================== START EXPRESS SERVER FIRST ====================
     const app = express();
     const PORT = process.env.PORT || 10000;
     app.get('/', (req, res) => res.send('Bot is running'));
