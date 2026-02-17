@@ -1,6 +1,46 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const express = require('express');
 
+const PROXY_WORKER_URL = 'https://discord.onerelay.workers.dev/';
+
+// Patch fetch to use proxy for Discord API calls
+const originalFetch = global.fetch;
+global.fetch = async (url, options = {}) => {
+  // Only proxy Discord API calls
+  if (url.includes('discord.com/api')) {
+    const discordPath = new URL(url).pathname;
+    url = `${PROXY_WORKER_URL}${discordPath}`;
+    // Add original host header
+    options.headers = {
+      ...options.headers,
+      'Host': 'discord.com'
+    };
+  }
+  return originalFetch(url, options);
+};
+
+// Proxy configuration (read from environment)
+const PROXY_URL = process.env.PROXY_URL; // e.g., http://user:pass@ip:port or socks5://...
+
+// If proxy is set, configure global fetch (undici) and WebSocket agent
+if (PROXY_URL) {
+  console.log('🔌 Proxy detected, configuring...');
+  
+  // For fetch (Discord API calls)
+  const { ProxyAgent, setGlobalDispatcher } = require('undici');
+  const proxyAgent = new ProxyAgent(PROXY_URL);
+  setGlobalDispatcher(proxyAgent);
+  console.log('✅ Global fetch proxy configured');
+
+  // For WebSocket (Discord gateway)
+  const { HttpsProxyAgent } = require('https-proxy-agent');
+  const wsAgent = new HttpsProxyAgent(PROXY_URL);
+  // We'll pass this agent to the Discord client via the `ws` option
+  global.wsProxyAgent = wsAgent; // Store for later use
+} else {
+  console.log('⚠️ No PROXY_URL set, using direct connection');
+}
+
 // ==================== DIAGNOSTIC: ENVIRONMENT VARIABLES ====================
 console.log('📋 Available environment keys:', Object.keys(process.env).sort());
 
@@ -47,7 +87,18 @@ if (!token) {
 }
 
 // ==================== DISCORD CLIENT ====================
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+// Pass the proxy agent to the WebSocket if configured
+const clientOptions = {
+  intents: [GatewayIntentBits.Guilds]
+};
+if (global.wsProxyAgent) {
+  clientOptions.ws = {
+    agent: global.wsProxyAgent
+  };
+  console.log('🔌 WebSocket will use proxy agent');
+}
+
+const client = new Client(clientOptions);
 
 client.once('ready', () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
