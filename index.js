@@ -4,10 +4,21 @@ const express = require('express');
 (async () => {
   try {
     const res = await fetch('https://discord.com/api/v10/gateway');
-    const data = await res.json();
-    console.log('✅ Discord API reachable, gateway URL:', data.url);
+    console.log('📡 Response status:', res.status, res.statusText);
+    
+    // Try to get the response as text first (in case it's not JSON)
+    const text = await res.text();
+    console.log('📄 Response preview (first 200 chars):', text.substring(0, 200));
+    
+    // If it's JSON, parse it
+    try {
+      const data = JSON.parse(text);
+      console.log('✅ Discord API reachable, gateway URL:', data.url);
+    } catch (e) {
+      console.error('❌ Response is not JSON. Raw response saved above.');
+    }
   } catch (err) {
-    console.error('❌ Cannot reach Discord API:', err.message);
+    console.error('❌ Network error reaching Discord API:', err.message);
     process.exit(1);
   }
 })();
