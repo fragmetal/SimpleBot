@@ -1,7 +1,3 @@
-// Force logs to flush immediately
-console.log = (msg) => { process.stdout.write(msg + '\n'); };
-console.error = (msg) => { process.stderr.write(msg + '\n'); };
-
 const { Client, GatewayIntentBits } = require('discord.js');
 const express = require('express');
 
@@ -44,6 +40,7 @@ const token = process.env.TOKEN;
 console.log('🔑 Token exists?', token ? 'YES' : 'NO');
 console.log('🔑 Token length:', token ? token.length : 'N/A');
 console.log('🔑 Token starts with:', token ? token.substring(0, 5) : 'N/A');
+
 if (!token) {
   console.error('❌ TOKEN environment variable is missing!');
   // Do not exit – continue to show other diagnostics.
@@ -51,7 +48,10 @@ if (!token) {
 
 // ==================== DISCORD CLIENT ====================
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-client.once('ready', () => console.log(`✅ Logged in as ${client.user.tag}`));
+
+client.once('ready', () => {
+  console.log(`✅ Logged in as ${client.user.tag}`);
+});
 
 // ==================== LOGIN WITH TIMEOUT ====================
 if (token) {
@@ -79,5 +79,9 @@ if (token) {
 // ==================== EXPRESS SERVER ====================
 const app = express();
 const PORT = process.env.PORT || 10000;
+
 app.get('/', (req, res) => res.send('Bot is running'));
-app.listen(PORT, () => console.log(`🌍 HTTP server listening on port ${PORT}`));
+
+app.listen(PORT, () => {
+  console.log(`🌍 HTTP server listening on port ${PORT}`);
+});
