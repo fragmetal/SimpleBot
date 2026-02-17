@@ -1,4 +1,3 @@
-const fetch = require('node-fetch');
 const { Client, GatewayIntentBits } = require('discord.js');
 const express = require('express');
 
@@ -21,6 +20,16 @@ client.once('ready', () => {
     console.log(`✅ Logged in as ${client.user.tag}`);
 });
 
+// 4. Your Express server (keep this as is)
+const app = express();
+const PORT = process.env.PORT || 10000;
+
+app.get('/', (req, res) => res.send('Bot is running'));
+
+app.listen(PORT, () => {
+    console.log(`HTTP server listening on port ${PORT}`);
+});
+
 // 3. THEN login (using the client that now exists)
 console.log("Attempting Discord login...");
 const loginTimeout = setTimeout(() => {
@@ -38,13 +47,3 @@ client.login(process.env.TOKEN)
     console.error("❌ Login failed:", err.message);
     process.exit(1);
   });
-
-// 4. Your Express server (keep this as is)
-const app = express();
-const PORT = process.env.PORT || 10000;
-
-app.get('/', (req, res) => res.send('Bot is running'));
-
-app.listen(PORT, () => {
-    console.log(`HTTP server listening on port ${PORT}`);
-});
