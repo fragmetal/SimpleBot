@@ -1,21 +1,31 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const express = require('express');
 
-const PROXY_WORKER_URL = 'https://discord.onerelay.workers.dev/';
+// Add this near the top of your file, before any Discord API calls
+const WORKER_PROXY_URL = 'https://discord.onerelay.workers.dev';
 
-// Patch fetch to use proxy for Discord API calls
+// Store original fetch
 const originalFetch = global.fetch;
+
+// Override fetch to use the Worker for Discord API calls
 global.fetch = async (url, options = {}) => {
-  // Only proxy Discord API calls
-  if (url.includes('discord.com/api')) {
-    const discordPath = new URL(url).pathname;
-    url = `${PROXY_WORKER_URL}${discordPath}`;
-    // Add original host header
-    options.headers = {
-      ...options.headers,
-      'Host': 'discord.com'
-    };
+  // Only proxy Discord API requests
+  if (typeof url === 'string' && url.includes('discord.com/api')) {
+    // Extract the API path
+    const apiPath = new URL(url).pathname;
+    const proxyUrl = `${WORKER_PROXY_URL}${apiPath}`;
+    
+    // Forward the request through the Worker
+    return originalFetch(proxyUrl, {
+      ...options,
+      headers: {
+        ...options.headers,
+        'Host': 'discord.com' // Some workers need this
+      }
+    });
   }
+  
+  // Otherwise use direct connection
   return originalFetch(url, options);
 };
 
