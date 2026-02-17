@@ -2,7 +2,7 @@
 # Helper script to build Docker image with optional features
 # Usage: ./build_image.sh [--with-ngrok]
 
-INSTALL_NGROK=true
+INSTALL_NGROK=false
 
 if [ "$1" = "--with-ngrok" ]; then
     INSTALL_NGROK=true
