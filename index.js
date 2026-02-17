@@ -1,55 +1,32 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const express = require('express');
+const { SocksProxyAgent } = require('socks-proxy-agent');
+const fetch = require('node-fetch'); // Install: npm install node-fetch@2
 
-// Add this near the top of your file, before any Discord API calls
-const WORKER_PROXY_URL = 'https://discord.onerelay.workers.dev';
+// ==================== PROXY CONFIGURATION ====================
+const PROXY_URL = process.env.PROXY_URL; // e.g., socks5://user:pass@ip:port
 
-// Store original fetch
-const originalFetch = global.fetch;
-
-// Override fetch to use the Worker for Discord API calls
-global.fetch = async (url, options = {}) => {
-  // Only proxy Discord API requests
-  if (typeof url === 'string' && url.includes('discord.com/api')) {
-    // Extract the API path
-    const apiPath = new URL(url).pathname;
-    const proxyUrl = `${WORKER_PROXY_URL}${apiPath}`;
-    
-    // Forward the request through the Worker
-    return originalFetch(proxyUrl, {
-      ...options,
-      headers: {
-        ...options.headers,
-        'Host': 'discord.com' // Some workers need this
-      }
-    });
-  }
-  
-  // Otherwise use direct connection
-  return originalFetch(url, options);
-};
-
-// Proxy configuration (read from environment)
-const PROXY_URL = process.env.PROXY_URL; // e.g., http://user:pass@ip:port or socks5://...
-
-// If proxy is set, configure global fetch (undici) and WebSocket agent
 if (PROXY_URL) {
-  console.log('🔌 Proxy detected, configuring...');
+  console.log('🔌 SOCKS5 proxy detected, configuring...');
   
-  // For fetch (Discord API calls)
-  const { ProxyAgent, setGlobalDispatcher } = require('undici');
-  const proxyAgent = new ProxyAgent(PROXY_URL);
-  setGlobalDispatcher(proxyAgent);
-  console.log('✅ Global fetch proxy configured');
-
-  // For WebSocket (Discord gateway)
-  const { HttpsProxyAgent } = require('https-proxy-agent');
-  const wsAgent = new HttpsProxyAgent(PROXY_URL);
-  // We'll pass this agent to the Discord client via the `ws` option
-  global.wsProxyAgent = wsAgent; // Store for later use
+  // Create SOCKS agent for all protocols
+  const socksAgent = new SocksProxyAgent(PROXY_URL);
+  
+  // Override global fetch to use the SOCKS agent
+  global.fetch = (url, options = {}) => {
+    return fetch(url, { ...options, agent: socksAgent });
+  };
+  
+  // Store agent for WebSocket (Discord.js will use it via clientOptions.ws.agent)
+  global.wsProxyAgent = socksAgent;
+  
+  console.log('✅ Global fetch and WebSocket configured to use SOCKS5 proxy');
 } else {
   console.log('⚠️ No PROXY_URL set, using direct connection');
+  // Keep original fetch intact
+  global.fetch = fetch;
 }
+
 // ==================== TEST GENERAL INTERNET CONNECTIVITY ====================
 (async () => {
   try {
@@ -89,11 +66,9 @@ console.log('🔑 Token starts with:', token ? token.substring(0, 5) : 'N/A');
 
 if (!token) {
   console.error('❌ TOKEN environment variable is missing!');
-  // Do not exit – continue to show other diagnostics.
 }
 
 // ==================== DISCORD CLIENT ====================
-// Pass the proxy agent to the WebSocket if configured
 const clientOptions = {
   intents: [GatewayIntentBits.Guilds]
 };
