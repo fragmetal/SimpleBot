@@ -16,8 +16,8 @@ app.use('/ssh', SSHTerminal({
     ssh: {
         host: 'localhost',    // Connect to the container itself
         port: 22,             // SSH port inside container
-        username: 'root',      // or your SSH username
-        password: 'SecurePass123' // ⚠️ Use environment variable instead!
+        username: process.env.SSH_USER || 'root',
+        password: process.env.SSH_PASSWORD // Set this in Render
         // Or use privateKey: require('fs').readFileSync('/path/to/key')
     }
 }));
