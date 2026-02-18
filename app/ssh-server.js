@@ -13,7 +13,6 @@ function setupSSHWebSocket(server) {
         const sshClient = new Client();
 
         sshClient.on('ready', () => {
-            socket.emit('data', '\r\n*** SSH CONNECTION ESTABLISHED ***\r\n');
 
             sshClient.shell({ term: 'xterm' }, (err, stream) => {
                 if (err) {
