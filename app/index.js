@@ -27,7 +27,7 @@ server.listen(PORT, '0.0.0.0', () => {
 
 // Discord bot
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-client.once('ready', () => {
+client.once('clientReady', () => {
     console.log(`✅ Logged in as ${client.user.tag}`);
 });
 client.login(process.env.TOKEN).catch(err => {
