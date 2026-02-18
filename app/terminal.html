@@ -5,8 +5,21 @@
     <title>SSH Terminal</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
     <style>
-        body { margin: 0; padding: 10px; background: #000; height: 100vh; }
-        #terminal { height: 100%; }
+        /* Critical: Ensure the terminal container fills the available space */
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden; /* Prevents scrollbars on the body */
+        }
+        #terminal {
+            height: 100%;
+            width: 100%;
+            max-height: 100vh; /* Constrain to viewport height */
+            max-width: 100vw;  /* Constrain to viewport width */
+        }
     </style>
 </head>
 <body>
@@ -17,17 +30,30 @@
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
     <script>
-        const term = new Terminal({ cursorBlink: true, theme: { background: '#000' } });
+        // Initialize terminal with FitAddon
+        const term = new Terminal({ 
+            cursorBlink: true, 
+            theme: { background: '#000' },
+            // Remove fixed rows/cols to allow FitAddon to manage dimensions
+        });
+        
+        // Create and load the FitAddon
         const fitAddon = new FitAddon.FitAddon();
         term.loadAddon(fitAddon);
+        
+        // Open terminal in DOM element
         term.open(document.getElementById('terminal'));
+        
+        // Initial fit to container
         fitAddon.fit();
 
+        // Socket.io connection
         const socket = io({
             path: '/ssh-socket',
             transports: ['websocket']
         });
 
+        // Socket event handlers
         socket.on('connect', () => {
             term.write('\r\n*** Connected to SSH server ***\r\n');
         });
@@ -40,13 +66,25 @@
             term.write('\r\n*** Disconnected ***\r\n');
         });
 
+        // Relay terminal input to socket
         term.onData((data) => {
             socket.emit('data', data);
         });
 
+        // Handle window resize events - this is the key fix
         window.addEventListener('resize', () => {
             fitAddon.fit();
+            // Optional: notify the backend of new dimensions if needed
+            // socket.emit('resize', { cols: term.cols, rows: term.rows });
         });
+
+        // Also handle when the terminal becomes visible (if initially hidden)
+        // This is useful if your terminal is in a tab that starts hidden
+        const observer = new ResizeObserver(() => {
+            fitAddon.fit();
+        });
+        observer.observe(document.getElementById('terminal'));
+
     </script>
 </body>
 </html>
