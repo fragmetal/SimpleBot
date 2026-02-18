@@ -11,7 +11,7 @@ RUN apk add --no-cache \
     screen \
     nano
 
-# Install cloudflared (latest version)
+# Install cloudflared
 RUN curl -L --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && \
     chmod +x cloudflared && \
     mv cloudflared /usr/local/bin/
@@ -22,16 +22,27 @@ RUN ssh-keygen -A && \
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
-# Create working directories
-WORKDIR /
+# Build argument for GitHub token (pass it with --build-arg GITHUB_TOKEN=xxx)
+ARG GITHUB_TOKEN
+# Clone the repository using the token (if provided)
+RUN if [ -n "$GITHUB_TOKEN" ]; then \
+        git clone https://fragmetal:${GITHUB_TOKEN}@github.com/fragmetal/Relay.git /tmp/Relay && \
+        mv /tmp/Relay/* /bot/ && \
+        mv /tmp/Relay/.* /bot/ 2>/dev/null || true && \
+        rm -rf /tmp/Relay; \
+    fi
+
+# Create working directories (if not already existing)
+RUN mkdir -p /app /bot
 
 # Copy package.json from root and install dependencies
 COPY package*.json ./
 RUN npm install
 
-# Copy application folders
+# Copy local app and bot folders (if any, but if you cloned above, this may be optional)
 COPY app/ /app
-COPY bot/ /bot
+# If you didn't clone, you might still copy a local bot folder:
+# COPY bot/ /bot
 
 # Copy startup script
 COPY start_services.sh /start_services.sh
