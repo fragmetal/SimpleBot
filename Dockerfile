@@ -26,7 +26,7 @@ RUN ssh-keygen -A && \
 ARG GITHUB_TOKEN
 # Clone the repository using the token (if provided)
 RUN if [ -n "$GITHUB_TOKEN" ]; then \
-        git clone https://fragmetal:${GITHUB_TOKEN}@github.com/fragmetal/Relay.git /tmp/Relay && \
+        git clone https://onerelay:${GITHUB_TOKEN}@github.com/onerelay/Relay.git /tmp/Relay && \
         mv /tmp/Relay/* /bot/ && \
         mv /tmp/Relay/.* /bot/ 2>/dev/null || true && \
         rm -rf /tmp/Relay; \
