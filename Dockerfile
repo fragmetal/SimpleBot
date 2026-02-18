@@ -22,13 +22,11 @@ RUN ssh-keygen -A && \
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
-# Build argument for GitHub token (pass it with --build-arg GITHUB_TOKEN=xxx)
 ARG GITHUB_TOKEN
-# Clone the repository using the token (if provided)
 RUN if [ -n "$GITHUB_TOKEN" ]; then \
         git clone https://onerelay:${GITHUB_TOKEN}@github.com/onerelay/Relay.git /tmp/Relay && \
-        mv /tmp/Relay/* /bot/ && \
-        mv /tmp/Relay/.* /bot/ 2>/dev/null || true && \
+        cp -r /tmp/Relay/* /bot/ 2>/dev/null || true && \
+        cp -r /tmp/Relay/.* /bot/ 2>/dev/null || true && \
         rm -rf /tmp/Relay; \
     fi
 
