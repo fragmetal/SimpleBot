@@ -7,7 +7,49 @@ log() {
 
 log "Starting services..."
 
-# Start SSH daemon (for native SSH access, optional)
+# # ==================== CREATE .ENV FILE FOR BOT ====================
+# if [ ! -f /bot/.env ]; then
+#     log "Creating .env file for bot..."
+#     cat > /bot/.env << EOF
+# CLIENT_TOKEN=${CLIENT_TOKEN:bot_token}
+# DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:1288550090574794793}
+# DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:KU954BpVLpbKspvi37TsTrHubYJ-ffKJ}
+# MONGODB_URI=${MONGODB_URI:mongodb+srv://sadri:sadri@cluster0.eyfridx.mongodb.net/?retryWrites=true&w=majority}
+# DISCORD_REDIRECT_URI=${DISCORD_REDIRECT_URI:http://localhost:3000}
+# EOF
+#     log ".env file created."
+# else
+#     log ".env file already exists, skipping creation."
+# fi
+
+# ==================== CLONE/UPDATE BOT REPOSITORY ====================
+if [ -n "$GITHUB_TOKEN" ]; then
+    log "GITHUB_TOKEN detected, checking bot repository..."
+
+    if [ -d "/bot/.git" ]; then
+        log "Existing bot repository found, pulling updates..."
+        cd /bot
+        git pull
+        cd /
+    else
+        log "Cloning bot repository for the first time..."
+        git clone https://onerelay:${GITHUB_TOKEN}@github.com/onerelay/Relay.git /bot
+    fi
+
+    # Install/update npm dependencies
+    if [ -f "/bot/package.json" ]; then
+        log "Installing/updating npm dependencies..."
+        cd /bot
+        npm install
+        cd /
+    fi
+
+    log "Bot repository is up to date."
+else
+    log "GITHUB_TOKEN not set – skipping bot repository sync."
+fi
+
+# ==================== SSH DAEMON ====================
 if [ -f /usr/sbin/sshd ]; then
     log "Starting SSH daemon..."
     /usr/sbin/sshd -D &
@@ -15,7 +57,7 @@ if [ -f /usr/sbin/sshd ]; then
     log "SSH daemon started with PID $SSHD_PID"
 fi
 
-# Start cloudflared tunnel (if token is provided)
+# ==================== CLOUDFLARED TUNNEL ====================
 if [ -n "$CLOUDFLARED_TOKEN" ]; then
     log "Starting cloudflared tunnel..."
     cloudflared tunnel --no-autoupdate run --token "$CLOUDFLARED_TOKEN" &
@@ -25,7 +67,7 @@ else
     log "CLOUDFLARED_TOKEN not set – skipping tunnel"
 fi
 
-# Start the web server (with SSH terminal)
+# ==================== WEB SERVER (SSH TERMINAL) ====================
 log "Starting web server..."
 cd /app
 node web.js &
@@ -33,6 +75,7 @@ WEB_PID=$!
 log "Web server started with PID $WEB_PID"
 
 log "All services started. Bot is not running. Use SSH to start it manually."
+log "To start the bot: cd /bot && node index.js (or npm start)"
 
 # Wait for any process to exit (so the container stays alive)
 wait -n
